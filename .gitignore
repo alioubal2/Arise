@@ -1,0 +1,42 @@
+# ==========================================================================
+# .gitignore racine — projet Arise
+# Le projet Flutter (mobile/) a son propre .gitignore pour ses artefacts de build.
+# ==========================================================================
+
+# --- Documents de travail / sources non versionnées -----------------------
+# Le cahier des charges est un document de référence externe : on ne le versionne
+# pas dans le dépôt de code (sa version de référence est distribuée séparément).
+arise-cahier-des-charges.pdf
+*.pdf
+
+# --- Fichiers système d'exploitation --------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# --- Éditeurs / IDE -------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# --- Environnement / secrets ----------------------------------------------
+.env
+.env.*
+*.local
+*.keystore
+*.jks
+key.properties
+secrets.properties
+
+# --- Logs et fichiers temporaires -----------------------------------------
+*.log
+*.tmp
+*.bak
