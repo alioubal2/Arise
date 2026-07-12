@@ -1,0 +1,231 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../data/database/app_database.dart';
+import '../../../data/repositories/reminder_repository.dart';
+import '../application/reminder_providers.dart';
+import 'reminder_edit_screen.dart';
+
+/// Écran d'accueil : liste des rappels actifs et accès à la création.
+class HomeScreen extends ConsumerWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final remindersAsync = ref.watch(remindersStreamProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Arise'),
+        titleTextStyle: const TextStyle(
+          color: AppColors.onDark,
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
+      ),
+      body: remindersAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Erreur de chargement des rappels :\n$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        ),
+        data: (reminders) {
+          if (reminders.isEmpty) {
+            return const _EmptyState();
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            itemCount: reminders.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) =>
+                _ReminderCard(reminder: reminders[index]),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openEditor(context),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.black,
+        icon: const Icon(Icons.add),
+        label: const Text('Nouveau rappel'),
+      ),
+    );
+  }
+
+  void _openEditor(BuildContext context, {int? reminderId}) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReminderEditScreen(reminderId: reminderId),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.alarm_add, size: 72, color: AppColors.secondary),
+            const SizedBox(height: 20),
+            Text(
+              'Aucun rappel pour le moment',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.onDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Créez un rappel que vous devrez valider par une photo puis un calcul mental.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.onDarkMuted, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReminderCard extends ConsumerWidget {
+  const _ReminderCard({required this.reminder});
+
+  final Reminder reminder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repo = ref.read(reminderRepositoryProvider);
+    final active = reminder.enabled;
+
+    return Dismissible(
+      key: ValueKey(reminder.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      confirmDismiss: (_) => _confirmDelete(context),
+      onDismissed: (_) => repo.deleteReminder(reminder.id),
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ReminderEditScreen(reminderId: reminder.id),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        reminder.formattedTime,
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                          color: active
+                              ? AppColors.onDark
+                              : AppColors.onDarkMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        reminder.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: active
+                              ? AppColors.onDark
+                              : AppColors.onDarkMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.repeat,
+                              size: 14, color: AppColors.onDarkMuted),
+                          const SizedBox(width: 4),
+                          Text(
+                            reminder.recurrenceLabel,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.onDarkMuted,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Icon(Icons.calculate_outlined,
+                              size: 14, color: AppColors.onDarkMuted),
+                          const SizedBox(width: 4),
+                          Text(
+                            reminder.difficulty.label,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.onDarkMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: active,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (value) =>
+                      repo.setEnabled(reminder.id, enabled: value),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer ce rappel ?'),
+        content: Text('« ${reminder.title} » sera définitivement supprimé.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+}
