@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/database/app_database.dart';
+import '../../../data/models/math_difficulty.dart';
 import '../../../data/repositories/reminder_repository.dart';
+import '../../math_lock/presentation/math_challenge_screen.dart';
 import '../application/reminder_providers.dart';
 import 'reminder_edit_screen.dart';
 
@@ -17,13 +19,20 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Arise'),
-        titleTextStyle: const TextStyle(
-          color: AppColors.onDark,
-          fontSize: 24,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
+        centerTitle: true,
+        toolbarHeight: 64,
+        title: Image.asset(
+          'assets/logo/logo-03-transparent.png',
+          height: 44,
+          fit: BoxFit.contain,
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Tester le calcul mental',
+            icon: const Icon(Icons.calculate_outlined),
+            onPressed: () => _openMathPreview(context),
+          ),
+        ],
       ),
       body: remindersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -67,6 +76,51 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Aperçu du calcul mental : choix du niveau puis lancement du défi.
+  void _openMathPreview(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceDark,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Tester le calcul mental',
+                style: TextStyle(
+                  color: AppColors.onDark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            for (final level in MathDifficulty.values)
+              ListTile(
+                title: Text(level.label,
+                    style: const TextStyle(color: AppColors.onDark)),
+                subtitle: Text(
+                  '${level.requiredStreak} bonne(s) réponse(s) · ${level.timeLimitSeconds}s',
+                  style: const TextStyle(color: AppColors.onDarkMuted),
+                ),
+                trailing: const Icon(Icons.chevron_right,
+                    color: AppColors.onDarkMuted),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MathChallengeScreen(difficulty: level),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _EmptyState extends StatelessWidget {
@@ -80,8 +134,12 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.alarm_add, size: 72, color: AppColors.secondary),
-            const SizedBox(height: 20),
+            Image.asset(
+              'assets/logo/logo-02-transparent.png',
+              width: 210,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 28),
             Text(
               'Aucun rappel pour le moment',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
