@@ -1,12 +1,17 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/database/app_database.dart';
 import '../../../data/models/math_difficulty.dart';
 import '../../../data/models/recurrence.dart';
 import '../../../data/repositories/reminder_repository.dart';
+import '../../alarm/application/alarm_scheduler.dart';
+import '../../photo_check/application/photo_service.dart';
 import '../application/reminder_providers.dart';
 
 /// Écran de création (reminderId == null) ou d'édition d'un rappel.
@@ -25,11 +30,15 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
 
+  final _photoService = PhotoService();
+
   TimeOfDay _time = const TimeOfDay(hour: 7, minute: 0);
   RecurrenceType _recurrence = RecurrenceType.daily;
   final Set<Weekday> _weekdays = {};
   MathDifficulty _difficulty = MathDifficulty.easy;
   int? _prepMinutes = 10;
+  final List<String> _referencePhotos = [];
+  String _soundId = 'default';
 
   bool _loading = false;
   bool _initialized = false;
@@ -52,6 +61,10 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
       ..addAll(r.selectedWeekdays);
     _difficulty = r.difficulty;
     _prepMinutes = r.prepNotificationMinutes;
+    _referencePhotos
+      ..clear()
+      ..addAll(r.referencePhotos);
+    _soundId = r.alarmSoundId;
   }
 
   @override
@@ -142,17 +155,25 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
               onChanged: (v) => setState(() => _prepMinutes = v),
             ),
             const SizedBox(height: 24),
-            const _ComingSoonTile(
-              icon: Icons.photo_camera_outlined,
-              title: 'Photo(s) de référence',
-              subtitle:
-                  'La capture de l\'objet à photographier arrivera avec le module alarme.',
+            _SectionLabel('Photos de référence'),
+            const SizedBox(height: 4),
+            const Text(
+              'Photographiez l\'objet à retrouver (2-3 angles conseillés).',
+              style: TextStyle(color: AppColors.onDarkMuted, fontSize: 12),
             ),
             const SizedBox(height: 12),
-            const _ComingSoonTile(
-              icon: Icons.music_note_outlined,
-              title: 'Son d\'alarme',
-              subtitle: 'La bibliothèque de sons arrivera avec le module alarme.',
+            _ReferencePhotos(
+              paths: _referencePhotos,
+              onAdd: _addReferencePhoto,
+              onRemove: (path) => setState(() => _referencePhotos.remove(path)),
+            ),
+            const SizedBox(height: 24),
+            _SectionLabel('Son d\'alarme'),
+            const SizedBox(height: 8),
+            _SoundSelector(
+              soundId: _soundId,
+              onDefault: () => setState(() => _soundId = 'default'),
+              onImport: _importSound,
             ),
           ],
         ),
@@ -180,6 +201,22 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
     if (picked != null) setState(() => _time = picked);
   }
 
+  Future<void> _addReferencePhoto() async {
+    final path =
+        await _photoService.captureReferencePhoto(seq: _referencePhotos.length);
+    if (path != null) setState(() => _referencePhotos.add(path));
+  }
+
+  void _importSound() {
+    // Import d'un son personnel : différé (voir rapport). Le son par défaut
+    // et les chemins de fichiers importés restent gérés par le lecteur.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Import d\'un son personnel : bientôt disponible.'),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_recurrence == RecurrenceType.weekdays && _weekdays.isEmpty) {
@@ -189,10 +226,13 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
 
     setState(() => _loading = true);
     final repo = ref.read(reminderRepositoryProvider);
+    final scheduler = ref.read(alarmSchedulerProvider);
 
     try {
+      int reminderId;
       if (widget.isEditing) {
-        final existing = await repo.getReminder(widget.reminderId!);
+        reminderId = widget.reminderId!;
+        final existing = await repo.getReminder(reminderId);
         if (existing != null) {
           await repo.updateReminder(
             existing.copyWith(
@@ -203,11 +243,13 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
               weekdaysMask: _weekdays.toMask(),
               mathDifficulty: _difficulty.index,
               prepNotificationMinutes: Value(_prepMinutes),
+              referencePhotos: _referencePhotos,
+              alarmSoundId: _soundId,
             ),
           );
         }
       } else {
-        await repo.createReminder(
+        reminderId = await repo.createReminder(
           title: _titleController.text.trim(),
           hour: _time.hour,
           minute: _time.minute,
@@ -215,8 +257,14 @@ class _ReminderEditScreenState extends ConsumerState<ReminderEditScreen> {
           weekdays: _weekdays,
           mathDifficulty: _difficulty,
           prepNotificationMinutes: _prepMinutes,
+          referencePhotos: _referencePhotos,
+          alarmSoundId: _soundId,
         );
       }
+      // (Re)programme l'alarme.
+      final saved = await repo.getReminder(reminderId);
+      if (saved != null) await scheduler.schedule(saved);
+
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -386,52 +434,120 @@ class _PrepNotificationSelector extends StatelessWidget {
   }
 }
 
-class _ComingSoonTile extends StatelessWidget {
-  const _ComingSoonTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+class _ReferencePhotos extends StatelessWidget {
+  const _ReferencePhotos({
+    required this.paths,
+    required this.onAdd,
+    required this.onRemove,
   });
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final List<String> paths;
+  final VoidCallback onAdd;
+  final ValueChanged<String> onRemove;
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.6,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.onDarkMuted),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 96,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (final path in paths)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Stack(
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: AppColors.onDark,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: AppColors.onDarkMuted, fontSize: 12)),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(File(path),
+                        width: 96, height: 96, fit: BoxFit.cover),
+                  ),
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: GestureDetector(
+                      onTap: () => onRemove(path),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close,
+                            size: 18, color: Colors.white),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Chip(
-              label: Text('À venir', style: TextStyle(fontSize: 11)),
-              visualDensity: VisualDensity.compact,
+          GestureDetector(
+            onTap: onAdd,
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDark,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.secondary),
+              ),
+              child: const Icon(Icons.add_a_photo_outlined,
+                  color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SoundSelector extends StatelessWidget {
+  const _SoundSelector({
+    required this.soundId,
+    required this.onDefault,
+    required this.onImport,
+  });
+  final String soundId;
+  final VoidCallback onDefault;
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDefault = soundId == 'default';
+    final label = isDefault ? 'Son par défaut' : p.basename(soundId);
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ChoiceChip(
+                label: const Text('Par défaut'),
+                selected: isDefault,
+                onSelected: (_) => onDefault(),
+                selectedColor: AppColors.primary,
+                labelStyle: TextStyle(
+                  color: isDefault ? AppColors.black : AppColors.onDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onImport,
+                icon: const Icon(Icons.upload_file, size: 18),
+                label: const Text('Importer'),
+              ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Sélectionné : $label',
+            style: const TextStyle(color: AppColors.onDarkMuted, fontSize: 12),
+          ),
+        ),
+      ],
     );
   }
 }

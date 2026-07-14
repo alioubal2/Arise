@@ -5,7 +5,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/database/app_database.dart';
 import '../../../data/models/math_difficulty.dart';
 import '../../../data/repositories/reminder_repository.dart';
+import '../../alarm/application/alarm_scheduler.dart';
+import '../../alarm/presentation/alarm_ringing_screen.dart';
 import '../../math_lock/presentation/math_challenge_screen.dart';
+import '../../photo_check/application/photo_service.dart';
 import '../application/reminder_providers.dart';
 import 'reminder_edit_screen.dart';
 
@@ -183,7 +186,11 @@ class _ReminderCard extends ConsumerWidget {
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       confirmDismiss: (_) => _confirmDelete(context),
-      onDismissed: (_) => repo.deleteReminder(reminder.id),
+      onDismissed: (_) async {
+        await ref.read(alarmSchedulerProvider).cancel(reminder.id);
+        await PhotoService().deleteReferencePhotos(reminder.referencePhotos);
+        await repo.deleteReminder(reminder.id);
+      },
       child: Card(
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -251,11 +258,28 @@ class _ReminderCard extends ConsumerWidget {
                     ],
                   ),
                 ),
+                IconButton(
+                  tooltip: 'Tester l\'alarme',
+                  icon: const Icon(Icons.play_circle_outline,
+                      color: AppColors.secondary),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AlarmRingingScreen(reminder: reminder),
+                    ),
+                  ),
+                ),
                 Switch(
                   value: active,
                   activeThumbColor: AppColors.primary,
-                  onChanged: (value) =>
-                      repo.setEnabled(reminder.id, enabled: value),
+                  onChanged: (value) async {
+                    await repo.setEnabled(reminder.id, enabled: value);
+                    final updated = await repo.getReminder(reminder.id);
+                    if (updated != null) {
+                      await ref
+                          .read(alarmSchedulerProvider)
+                          .schedule(updated);
+                    }
+                  },
                 ),
               ],
             ),
