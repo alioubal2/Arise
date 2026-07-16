@@ -1,0 +1,9 @@
+# API
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.19
+pydantic-settings==2.7.1
+
+# Traitement d'image (baseline de vérification — à remplacer par le modèle IA)
+pillow==11.1.0
+imagehash==4.3.1

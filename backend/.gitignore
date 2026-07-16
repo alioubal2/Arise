@@ -1,0 +1,19 @@
+# Environnement virtuel
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Config locale / secrets
+.env
+
+# Modèles IA volumineux (à ne pas versionner)
+*.pt
+*.pth
+*.onnx
+*.safetensors
+models/
