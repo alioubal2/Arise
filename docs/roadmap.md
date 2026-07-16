@@ -13,8 +13,8 @@
 
 | Sprint | Objectif | Livrable |
 |--------|----------|----------|
-| **S0 — Cadrage** | Init projet Flutter, structure du dépôt, docs | ✅ En cours |
-| **S1 — Structure & données** | Modèles de rappels, base locale (Hive/Drift), écran Accueil + Création | CRUD des rappels fonctionnel |
+| **S0 — Cadrage** | Init projet Flutter, structure du dépôt, docs, recherche design | ✅ Fait |
+| **S1 — Structure & données** | Modèles de rappels, base locale (Drift), Riverpod, écran Accueil + Création/Édition | ✅ Fait (CRUD + tests verts) |
 | **S2 — Alarme** | Planification, écran d'alarme plein écran, verrouillage, sons | Alarme déclenchée et bloquante |
 | **S3 — Comparaison photo** | Capture, calibration multi-photos, pHash + histogramme, tolérance/heure | Validation photo (étape 1) |
 | **S4 — Calcul mental** | Niveaux de difficulté, limite de temps, anti-blocage progressif | Déblocage (étape 2) |
@@ -24,7 +24,14 @@
 
 - [x] Dépôt Git initialisé (branches `main` / `develop`)
 - [x] Projet Flutter créé dans [`../mobile/`](../mobile/) (Android)
-- [x] Documentation de cadrage rédigée dans `docs/`
-- [ ] Maquettes des écrans
-- [ ] Prototype de comparaison photo
-- [ ] Développement des sprints S1 → S5
+- [x] Documentation de cadrage + recherche design rédigées dans `docs/`
+- [x] Thème couleurs Arise (turquoise sur fond sombre)
+- [x] **S1 — Fondation** : Drift + Riverpod, CRUD des rappels, écrans Accueil + Création/Édition, tests verts
+- [x] **Branding** : logo intégré (barre, écran vide), icône, splash
+- [x] **S4 — Calcul mental** : moteur d'opérations + anti-blocage progressif + écran (clavier, chrono)
+- [x] **S3 — Comparaison photo** : pHash (DCT) + histogramme, tolérance selon l'heure, tests
+- [x] **S2 — Alarme** : planification (récurrence), notifications locales, son+vibration, écran plein écran, config native (permissions, écran verrouillé)
+- [x] **Flux complet** : alarme → photo (capture + validation) → calcul mental → confirmation
+- [ ] **À valider sur appareil physique** : déclenchement réel en arrière-plan, correspondance photo réelle (caméra), alarme sur écran verrouillé
+- [ ] Import d'un son personnel (différé : incompatibilité `file_picker`/SDK)
+- [ ] Notifications d'échecs répétés · Statistiques (v2)

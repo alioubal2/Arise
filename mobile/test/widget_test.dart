@@ -1,30 +1,58 @@
-// This is a basic Flutter widget test.
+// Smoke tests de l'écran d'accueil d'Arise.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Le flux de rappels est surchargé par un Stream déterministe pour éviter la
+// dépendance à la base et l'animation infinie du loader (qui bloque
+// pumpAndSettle).
 
+import 'package:arise/data/database/app_database.dart';
+import 'package:arise/features/reminders/application/reminder_providers.dart';
+import 'package:arise/features/reminders/presentation/home_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:arise/main.dart';
+Reminder _sampleReminder() => Reminder(
+      id: 1,
+      title: 'Prière du matin',
+      hour: 6,
+      minute: 30,
+      recurrenceType: 1, // daily
+      weekdaysMask: 0,
+      referencePhotos: const [],
+      alarmSoundId: 'default',
+      mathDifficulty: 0,
+      prepNotificationMinutes: null,
+      enabled: true,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    );
+
+Future<void> _pumpHome(WidgetTester tester, List<Reminder> reminders) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        remindersStreamProvider.overrideWith((ref) => Stream.value(reminders)),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ),
+  );
+  // Un pump pour construire, un autre pour laisser le Stream émettre.
+  await tester.pump();
+  await tester.pump();
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Accueil : état vide quand aucun rappel', (tester) async {
+    await _pumpHome(tester, const []);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Aucun rappel pour le moment'), findsOneWidget);
+    expect(find.text('Nouveau rappel'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('Accueil : affiche un rappel', (tester) async {
+    await _pumpHome(tester, [_sampleReminder()]);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('06:30'), findsOneWidget);
+    expect(find.text('Prière du matin'), findsOneWidget);
   });
 }

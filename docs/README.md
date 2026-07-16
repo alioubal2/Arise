@@ -13,6 +13,7 @@
 | [specifications-fonctionnelles.md](specifications-fonctionnelles.md) | Fonctionnalités v1 (MVP), versions futures, cas particuliers |
 | [parcours-utilisateur.md](parcours-utilisateur.md) | Écrans et parcours utilisateur |
 | [architecture-technique.md](architecture-technique.md) | Choix technos, comparaison photo locale, structure du code |
+| [recherche-design.md](recherche-design.md) | Recherche UX vérifiée (Alarmy & co.), recommandations design |
 | [contraintes.md](contraintes.md) | Confidentialité, fiabilité, batterie, accès d'urgence |
 | [roadmap.md](roadmap.md) | Prochaines étapes et découpage en sprints |
 
