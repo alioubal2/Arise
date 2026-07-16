@@ -4,6 +4,12 @@ uvicorn[standard]==0.34.0
 python-multipart==0.0.19
 pydantic-settings==2.7.1
 
-# Traitement d'image (baseline de vérification — à remplacer par le modèle IA)
+# Traitement d'image
 pillow==11.1.0
-imagehash==4.3.1
+numpy==2.2.1
+
+# Modèle IA — CLIP via sentence-transformers.
+# ⚠️ Installez torch en version CPU AVANT pour éviter le téléchargement CUDA (~2 Go) :
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
+sentence-transformers==3.3.1
