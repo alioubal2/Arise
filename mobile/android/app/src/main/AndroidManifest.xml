@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <!-- Capture de la photo de validation / de référence -->
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Vérification photo via le backend IA -->
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
         android:label="Arise"

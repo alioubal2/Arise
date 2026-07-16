@@ -51,9 +51,11 @@ dependencies:
   # Permissions sensibles (alarmes exactes, notifications, caméra…)
   permission_handler: ^11.3.1
 
-  # Traitement d'image local (pHash + histogramme) et capture photo
-  image: ^4.3.0
+  # Capture photo (référence + validation)
   image_picker: ^1.1.2
+
+  # Appel du backend de vérification (IA)
+  http: ^1.2.2
 
   # Son d'alarme (lecture en boucle) + vibration
   audioplayers: ^6.1.0

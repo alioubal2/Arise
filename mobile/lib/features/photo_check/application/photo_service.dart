@@ -4,31 +4,37 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../domain/image_comparator.dart';
-import '../domain/image_signature.dart';
+import '../data/verification_api.dart';
 
 /// Résultat d'une tentative de validation photo.
 class PhotoValidationOutcome {
   const PhotoValidationOutcome({
     required this.captured,
-    required this.result,
+    required this.matched,
+    this.backendReachable = true,
   });
 
   /// L'utilisateur a bien pris une photo (false s'il a annulé la caméra).
   final bool captured;
 
-  /// Résultat de la comparaison (null si aucune photo prise).
-  final ComparisonResult? result;
+  /// La photo correspond (selon le backend IA).
+  final bool matched;
 
-  bool get matched => result?.matched ?? false;
+  /// False si le backend de vérification est injoignable.
+  final bool backendReachable;
 }
 
-/// Capture et validation des photos, 100% local.
+/// Capture des photos et validation via le backend IA.
 ///
-/// Les photos de référence sont conservées dans l'espace privé de l'app ; la
-/// photo de validation est traitée en mémoire puis jamais conservée.
+/// La comparaison n'est plus locale : la photo de validation est envoyée à un
+/// backend FastAPI (modèle IA) avec les photos de référence. Les photos de
+/// référence restent stockées dans l'espace privé de l'app.
 class PhotoService {
+  PhotoService({PhotoVerificationApi? api})
+      : _api = api ?? PhotoVerificationApi();
+
   final ImagePicker _picker = ImagePicker();
+  final PhotoVerificationApi _api;
 
   Future<Directory> _referencesDir() async {
     final base = await getApplicationDocumentsDirectory();
@@ -37,8 +43,8 @@ class PhotoService {
     return dir;
   }
 
-  /// Ouvre la caméra pour capturer une photo de référence et l'enregistre
-  /// dans l'espace privé. Renvoie le chemin, ou null si annulé.
+  /// Capture une photo de référence et l'enregistre dans l'espace privé.
+  /// Renvoie le chemin, ou null si annulé.
   Future<String?> captureReferencePhoto({int? seq}) async {
     final shot = await _picker.pickImage(
       source: ImageSource.camera,
@@ -61,24 +67,10 @@ class PhotoService {
     }
   }
 
-  /// Calcule les signatures des photos de référence (au moment de la validation).
-  Future<List<ImageSignature>> loadReferenceSignatures(
-      List<String> paths) async {
-    final signatures = <ImageSignature>[];
-    for (final path in paths) {
-      final file = File(path);
-      if (!await file.exists()) continue;
-      final sig = computeSignature(await file.readAsBytes());
-      if (sig != null) signatures.add(sig);
-    }
-    return signatures;
-  }
-
-  /// Capture une photo de validation et la compare aux références.
-  /// La photo de validation n'est jamais conservée.
+  /// Capture une photo de validation et la fait vérifier par le backend IA.
+  /// La photo de validation n'est pas conservée.
   Future<PhotoValidationOutcome> validateAgainst({
-    required List<ImageSignature> referenceSignatures,
-    required int hour,
+    required List<String> referencePaths,
   }) async {
     final shot = await _picker.pickImage(
       source: ImageSource.camera,
@@ -86,18 +78,21 @@ class PhotoService {
       imageQuality: 85,
     );
     if (shot == null) {
-      return const PhotoValidationOutcome(captured: false, result: null);
+      return const PhotoValidationOutcome(captured: false, matched: false);
     }
-    final bytes = await shot.readAsBytes();
-    final candidate = computeSignature(bytes);
-    if (candidate == null) {
-      return const PhotoValidationOutcome(captured: true, result: null);
-    }
-    final result = compareAgainstReferences(
-      referenceSignatures,
-      candidate,
-      MatchTolerance.forHour(hour),
+    final result = await _api.verify(
+      referencePaths: referencePaths,
+      candidatePath: shot.path,
     );
-    return PhotoValidationOutcome(captured: true, result: result);
+    // Suppression immédiate de la photo de validation.
+    try {
+      await File(shot.path).delete();
+    } catch (_) {}
+
+    return PhotoValidationOutcome(
+      captured: true,
+      matched: result.matched,
+      backendReachable: result.backendReachable,
+    );
   }
 }

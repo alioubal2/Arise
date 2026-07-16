@@ -8,7 +8,6 @@ import '../../../data/models/math_difficulty.dart';
 import '../../../data/repositories/reminder_repository.dart';
 import '../../math_lock/presentation/math_challenge_screen.dart';
 import '../../photo_check/application/photo_service.dart';
-import '../../photo_check/domain/image_signature.dart';
 import '../application/alarm_sound_player.dart';
 import '../application/notification_service.dart';
 
@@ -32,27 +31,22 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
   final _player = AlarmSoundPlayer();
   final _photoService = PhotoService();
 
-  List<ImageSignature> _refSignatures = [];
   int _photoFailures = 0;
+  bool _backendError = false;
   _Phase _phase = _Phase.ringing;
   Timer? _clockTimer;
   DateTime _now = DateTime.now();
+
+  bool get _hasReferences => widget.reminder.referencePhotos.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _player.startRinging(widget.reminder.alarmSoundId);
-    _loadReferences();
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
     );
-  }
-
-  Future<void> _loadReferences() async {
-    final sigs = await _photoService
-        .loadReferenceSignatures(widget.reminder.referencePhotos);
-    if (mounted) setState(() => _refSignatures = sigs);
   }
 
   @override
@@ -64,14 +58,13 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
 
   Future<void> _takePhoto() async {
     // Sans photo de référence, on passe directement au calcul mental.
-    if (_refSignatures.isEmpty) {
+    if (!_hasReferences) {
       _goToMath(elevated: false);
       return;
     }
     setState(() => _phase = _Phase.validating);
     final outcome = await _photoService.validateAgainst(
-      referenceSignatures: _refSignatures,
-      hour: widget.reminder.hour,
+      referencePaths: widget.reminder.referencePhotos,
     );
     if (!mounted) return;
 
@@ -83,8 +76,9 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
       _goToMath(elevated: false);
       return;
     }
-    // Échec de correspondance.
+    // Échec : non-correspondance, ou backend de vérification injoignable.
     _photoFailures++;
+    _backendError = !outcome.backendReachable;
     if (_photoFailures >= kMaxPhotoFailures) {
       // Anti-blocage : on saute la photo, calcul mental à un niveau plus élevé.
       _goToMath(elevated: true);
@@ -167,9 +161,7 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
                       _phase == _Phase.validating ? null : _takePhoto,
                   icon: const Icon(Icons.photo_camera),
                   label: Text(
-                    _refSignatures.isEmpty
-                        ? 'Continuer'
-                        : 'Prendre la photo',
+                    _hasReferences ? 'Prendre la photo' : 'Continuer',
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -191,17 +183,20 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
         );
       case _Phase.retry:
         final remaining = kMaxPhotoFailures - _photoFailures;
+        final reason = _backendError
+            ? 'Vérification indisponible (serveur injoignable).'
+            : 'Photo non reconnue.';
         return Text(
-          'Photo non reconnue. Réessayez.\n'
+          '$reason Réessayez.\n'
           '($remaining tentative(s) avant le calcul mental)',
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.warning),
         );
       case _Phase.ringing:
         return Text(
-          _refSignatures.isEmpty
-              ? 'Aucune photo de référence : appuyez pour continuer.'
-              : "Photographiez l'objet associé pour arrêter l'alarme.",
+          _hasReferences
+              ? "Photographiez l'objet associé pour arrêter l'alarme."
+              : 'Aucune photo de référence : appuyez pour continuer.',
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.onDarkMuted),
         );
