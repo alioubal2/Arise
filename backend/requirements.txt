@@ -8,8 +8,9 @@ pydantic-settings==2.7.1
 pillow==11.1.0
 numpy==2.2.1
 
-# Modèle IA — CLIP via sentence-transformers.
+# Modèles IA — DINOv2 (défaut, via transformers) + CLIP (option, via sentence-transformers).
 # ⚠️ Installez torch en version CPU AVANT pour éviter le téléchargement CUDA (~2 Go) :
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 #   pip install -r requirements.txt
+transformers==4.57.6
 sentence-transformers==3.3.1

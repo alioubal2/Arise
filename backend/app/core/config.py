@@ -9,14 +9,26 @@ class Settings(BaseSettings):
     # Nom / métadonnées
     app_name: str = "Arise Verification API"
 
-    # Modèle CLIP (sentence-transformers). Alternatives : "clip-ViT-B-16",
-    # "clip-ViT-L-14" (plus précis, plus lourd).
+    # Moteur de vérification :
+    #   "hybrid" (recommandé) = DINOv2 (forme/texture) + histogramme couleur
+    #   "dinov2" = DINOv2 seul
+    #   "clip"   = CLIP seul
+    verifier: str = "hybrid"
+
+    # Seuil de similarité couleur (histogramme, 0..1) pour le mode hybride.
+    color_threshold: float = 0.55
+
+    # Modèle DINOv2 (transformers). Alternatives : "facebook/dinov2-small"
+    # (plus léger), "facebook/dinov2-large" (plus précis, plus lourd).
+    dinov2_model: str = "facebook/dinov2-base"
+
+    # Modèle CLIP (sentence-transformers), si verifier == "clip".
     clip_model: str = "clip-ViT-B-32"
 
     # Seuil de correspondance : similarité cosinus minimale (0..1) entre
     # l'embedding de la photo candidate et la meilleure photo de référence.
-    # Plus haut = plus strict. ~0.80 est un bon point de départ pour "même objet".
-    match_threshold: float = 0.80
+    # Plus haut = plus strict. ~0.75 convient à DINOv2 (large marge same/diff).
+    match_threshold: float = 0.75
 
     # Taille maximale acceptée par image (Mo).
     max_file_size_mb: float = 8.0

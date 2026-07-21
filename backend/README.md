@@ -4,8 +4,12 @@ API qui vérifie qu'une photo de validation correspond à l'objet de référence
 d'un rappel. L'app mobile Arise envoie les images ; le backend renvoie une
 décision de correspondance.
 
-> ⚠️ La vérification actuelle est une **baseline** (hash perceptuel pHash).
-> Elle est destinée à être **remplacée par un modèle IA** (voir plus bas).
+> La vérification par défaut est **hybride** : **DINOv2** (forme/texture) +
+> **histogramme couleur**. DINOv2 discrimine bien la structure mais est aveugle
+> à la couleur ; l'histogramme couvre cet angle mort. Un objet est validé
+> seulement si la structure ET la couleur correspondent. DINOv2 seul et CLIP
+> restent disponibles en option. **Les seuils doivent être calibrés sur de
+> vraies photos** (voir `scripts/calibrate.py`).
 
 ## Structure
 
@@ -75,17 +79,35 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 | Clé | Défaut | Rôle |
 |-----|--------|------|
-| `ARISE_CLIP_MODEL` | `clip-ViT-B-32` | Modèle CLIP |
-| `ARISE_MATCH_THRESHOLD` | `0.80` | Seuil cosinus par défaut |
+| `ARISE_VERIFIER` | `hybrid` | Moteur : `hybrid`, `dinov2` ou `clip` |
+| `ARISE_DINOV2_MODEL` | `facebook/dinov2-base` | Modèle DINOv2 |
+| `ARISE_CLIP_MODEL` | `clip-ViT-B-32` | Modèle CLIP (si `verifier=clip`) |
+| `ARISE_MATCH_THRESHOLD` | `0.75` | Seuil structure (cosinus) — ~0.75 DINOv2, ~0.90 CLIP |
+| `ARISE_COLOR_THRESHOLD` | `0.55` | Seuil histogramme couleur (mode hybride) |
 | `ARISE_MAX_FILE_SIZE_MB` | `8` | Taille max par image |
 | `ARISE_MAX_REFERENCES` | `5` | Nombre max de références |
 | `ARISE_WARMUP_ON_STARTUP` | `true` | Charger le modèle au démarrage |
+
+## Calibrer les seuils sur de vraies photos
+
+Les seuils par défaut viennent de tests synthétiques (pessimistes). Sur de vraies
+photos, mesurez et ajustez avec :
+
+```bash
+python scripts/calibrate.py \
+  --references photos/reference \
+  --same       photos/meme_objet \
+  --different  photos/autres_objets
+```
+
+Le script affiche les distributions de similarité (structure + couleur) et
+**suggère les seuils** `ARISE_MATCH_THRESHOLD` et `ARISE_COLOR_THRESHOLD`.
 
 ## Tests
 
 ```bash
 pip install -r requirements-dev.txt
-pytest            # rapide : utilise un faux verifier, ne charge pas CLIP
+pytest            # rapide : utilise un faux verifier, ne charge pas les modèles
 ```
 
 ## Brancher votre modèle IA
