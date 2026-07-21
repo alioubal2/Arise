@@ -42,14 +42,50 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ### `POST /verify`  (multipart/form-data)
 
-| Champ | Type | Description |
-|-------|------|-------------|
-| `candidate` | fichier | Photo de validation prise pendant l'alarme |
-| `references` | fichier(s) | 1 ou plusieurs photos de référence du rappel |
+| Champ | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `candidate` | fichier | oui | Photo de validation prise pendant l'alarme |
+| `references` | fichier(s) | oui | 1 à `max_references` photos de référence |
+| `threshold` | float (0..1) | non | Seuil cosinus surchargeant le défaut pour cette requête |
 
 **Réponse `200`** :
 ```json
-{ "matched": true, "confidence": 0.93 }
+{
+  "matched": true,
+  "confidence": 0.93,
+  "threshold": 0.80,
+  "model": "clip-ViT-B-32",
+  "reference_scores": [0.93, 0.88]
+}
+```
+
+**Erreurs** :
+| Code | Cas |
+|------|-----|
+| `400` | Aucune/trop de références, `threshold` hors [0,1], fichier vide, candidate non-image, aucune référence exploitable |
+| `413` | Fichier plus grand que `max_file_size_mb` |
+| `422` | Champ requis manquant |
+
+### `GET /health`
+```json
+{ "status": "ok", "model_loaded": true }
+```
+
+## Configuration (`.env` ou variables d'env., préfixe `ARISE_`)
+
+| Clé | Défaut | Rôle |
+|-----|--------|------|
+| `ARISE_CLIP_MODEL` | `clip-ViT-B-32` | Modèle CLIP |
+| `ARISE_MATCH_THRESHOLD` | `0.80` | Seuil cosinus par défaut |
+| `ARISE_MAX_FILE_SIZE_MB` | `8` | Taille max par image |
+| `ARISE_MAX_REFERENCES` | `5` | Nombre max de références |
+| `ARISE_WARMUP_ON_STARTUP` | `true` | Charger le modèle au démarrage |
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest            # rapide : utilise un faux verifier, ne charge pas CLIP
 ```
 
 ## Brancher votre modèle IA

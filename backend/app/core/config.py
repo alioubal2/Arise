@@ -18,9 +18,22 @@ class Settings(BaseSettings):
     # Plus haut = plus strict. ~0.80 est un bon point de départ pour "même objet".
     match_threshold: float = 0.80
 
+    # Taille maximale acceptée par image (Mo).
+    max_file_size_mb: float = 8.0
+
+    # Nombre maximal de photos de référence par requête.
+    max_references: int = 5
+
+    # Charger le modèle au démarrage (évite la lenteur du 1er /verify).
+    warmup_on_startup: bool = True
+
     # Origines autorisées pour le CORS (l'app mobile n'en a pas besoin, mais
     # utile pour tester depuis un navigateur / outil).
     cors_origins: list[str] = ["*"]
+
+    @property
+    def max_file_size_bytes(self) -> int:
+        return int(self.max_file_size_mb * 1024 * 1024)
 
 
 settings = Settings()

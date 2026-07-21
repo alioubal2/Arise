@@ -1,76 +1,125 @@
 """Logique de vérification photo — modèle IA CLIP (self-hosted, gratuit).
 
-La fonction `verify_images` reçoit la photo candidate et les photos de référence
-(en bytes) et renvoie (matched: bool, confidence: float in [0, 1]).
-
-Approche : CLIP (via sentence-transformers) transforme chaque image en un vecteur
-(embedding). On calcule la similarité cosinus entre la candidate et chaque
-référence ; la correspondance est validée si la meilleure similarité dépasse le
-seuil configuré. Le modèle est chargé une seule fois (paresseusement), et ses
-poids sont téléchargés au premier usage puis mis en cache localement.
+Le `Verifier` est une interface injectable : l'implémentation CLIP peut être
+remplacée (autre modèle) ou substituée par un faux en test, sans toucher à l'API.
 """
 
 from __future__ import annotations
 
 import io
 import threading
+from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from app.core.config import settings
 
-_model = None
-_model_lock = threading.Lock()
+
+class InvalidImageError(ValueError):
+    """La photo candidate n'a pas pu être décodée comme une image."""
 
 
-def get_model():
-    """Charge le modèle CLIP une seule fois (thread-safe, chargement paresseux)."""
-    global _model
-    if _model is None:
-        with _model_lock:
-            if _model is None:
-                from sentence_transformers import SentenceTransformer
+class NoValidReferenceError(ValueError):
+    """Aucune photo de référence exploitable."""
 
-                _model = SentenceTransformer(settings.clip_model)
-    return _model
+
+@dataclass
+class VerificationOutput:
+    matched: bool
+    confidence: float
+    threshold: float
+    model: str
+    reference_scores: list[float]
+
+
+class Verifier(Protocol):
+    """Contrat d'un moteur de vérification photo."""
+
+    def verify(
+        self,
+        candidate: bytes,
+        references: list[bytes],
+        threshold: float | None = None,
+    ) -> VerificationOutput: ...
+
+    def warmup(self) -> None: ...
 
 
 def _load_image(data: bytes) -> Image.Image:
-    return Image.open(io.BytesIO(data)).convert("RGB")
+    try:
+        return Image.open(io.BytesIO(data)).convert("RGB")
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise InvalidImageError(str(exc)) from exc
 
 
-def verify_images(
-    candidate: bytes,
-    references: list[bytes],
-) -> tuple[bool, float]:
-    """Compare la photo candidate aux photos de référence via CLIP."""
-    if not references:
-        return False, 0.0
+class ClipVerifier:
+    """Vérification par embeddings CLIP + similarité cosinus."""
 
-    candidate_image = _load_image(candidate)
-    reference_images: list[Image.Image] = []
-    for ref in references:
-        try:
-            reference_images.append(_load_image(ref))
-        except Exception:
-            continue
-    if not reference_images:
-        return False, 0.0
+    def __init__(self, model_name: str | None = None) -> None:
+        self._model_name = model_name or settings.clip_model
+        self._model = None
+        self._lock = threading.Lock()
 
-    model = get_model()
-    # Embeddings normalisés -> le produit scalaire vaut la similarité cosinus.
-    embeddings = model.encode(
-        [candidate_image] + reference_images,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    )
-    candidate_embedding = embeddings[0]
-    reference_embeddings = embeddings[1:]
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
-    similarities = reference_embeddings @ candidate_embedding
-    best = float(np.max(similarities))
+    @property
+    def is_ready(self) -> bool:
+        return self._model is not None
 
-    matched = bool(best >= settings.match_threshold)
-    confidence = float(max(0.0, min(1.0, best)))
-    return matched, round(confidence, 4)
+    def _get_model(self):
+        if self._model is None:
+            with self._lock:
+                if self._model is None:
+                    from sentence_transformers import SentenceTransformer
+
+                    self._model = SentenceTransformer(self._model_name)
+        return self._model
+
+    def warmup(self) -> None:
+        """Charge le modèle en mémoire (téléchargement au 1er appel)."""
+        self._get_model()
+
+    def verify(
+        self,
+        candidate: bytes,
+        references: list[bytes],
+        threshold: float | None = None,
+    ) -> VerificationOutput:
+        thr = settings.match_threshold if threshold is None else threshold
+
+        candidate_image = _load_image(candidate)  # peut lever InvalidImageError
+
+        reference_images: list[Image.Image] = []
+        for ref in references:
+            try:
+                reference_images.append(_load_image(ref))
+            except InvalidImageError:
+                continue  # on ignore une référence illisible
+        if not reference_images:
+            raise NoValidReferenceError("aucune référence exploitable")
+
+        model = self._get_model()
+        # Embeddings normalisés -> produit scalaire = similarité cosinus.
+        embeddings = model.encode(
+            [candidate_image] + reference_images,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
+        candidate_embedding = embeddings[0]
+        reference_embeddings = embeddings[1:]
+
+        similarities = reference_embeddings @ candidate_embedding
+        scores = [round(float(s), 4) for s in similarities]
+        best = float(np.max(similarities))
+
+        return VerificationOutput(
+            matched=bool(best >= thr),
+            confidence=round(float(max(0.0, min(1.0, best))), 4),
+            threshold=round(float(thr), 4),
+            model=self._model_name,
+            reference_scores=scores,
+        )
