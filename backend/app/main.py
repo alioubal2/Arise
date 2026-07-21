@@ -21,7 +21,7 @@ logger = logging.getLogger("arise")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.warmup_on_startup:
-        logger.info("Warmup du modèle %s…", settings.clip_model)
+        logger.info("Warmup du moteur '%s'…", settings.verifier)
         try:
             get_verifier().warmup()
             logger.info("Modèle chargé, prêt à vérifier.")
