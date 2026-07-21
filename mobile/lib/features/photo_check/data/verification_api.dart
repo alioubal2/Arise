@@ -40,6 +40,18 @@ class PhotoVerificationApi {
   final String _baseUrl;
   final http.Client _client;
 
+  /// Teste la disponibilité du backend (GET /health). True si joignable.
+  Future<bool> checkHealth() async {
+    try {
+      final response = await _client
+          .get(Uri.parse('$_baseUrl/health'))
+          .timeout(const Duration(seconds: 8));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<VerificationResult> verify({
     required List<String> referencePaths,
     required String candidatePath,

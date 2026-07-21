@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/settings/app_settings.dart';
 import 'core/theme/app_theme.dart';
 import 'features/alarm/application/alarm_scheduler.dart';
 import 'features/alarm/presentation/alarm_ringing_screen.dart';
+import 'features/onboarding/presentation/onboarding_screen.dart';
 import 'features/reminders/application/reminder_providers.dart';
 import 'features/reminders/presentation/home_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: AriseApp()));
+  final prefs = await SharedPreferences.getInstance();
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const AriseApp(),
+    ),
+  );
 }
 
 class AriseApp extends ConsumerStatefulWidget {
@@ -32,10 +41,10 @@ class _AriseAppState extends ConsumerState<AriseApp> {
     final notifications = ref.read(notificationServiceProvider);
     notifications.onAlarmOpened = _openAlarm;
     await notifications.init();
-    await notifications.requestPermissions();
 
     // Reprogramme toutes les alarmes actives au démarrage.
-    final reminders = await ref.read(reminderRepositoryProvider).watchReminders().first;
+    final reminders =
+        await ref.read(reminderRepositoryProvider).watchReminders().first;
     await ref.read(alarmSchedulerProvider).rescheduleAll(reminders);
   }
 
@@ -52,6 +61,8 @@ class _AriseAppState extends ConsumerState<AriseApp> {
 
   @override
   Widget build(BuildContext context) {
+    final onboardingDone =
+        ref.watch(appSettingsProvider.select((s) => s.onboardingDone));
     return MaterialApp(
       title: 'Arise',
       debugShowCheckedModeBanner: false,
@@ -59,7 +70,7 @@ class _AriseAppState extends ConsumerState<AriseApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
-      home: const HomeScreen(),
+      home: onboardingDone ? const HomeScreen() : const OnboardingScreen(),
     );
   }
 }

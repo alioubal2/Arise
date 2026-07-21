@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/database/app_database.dart';
 import '../../../data/models/math_difficulty.dart';
 import '../../../data/repositories/reminder_repository.dart';
 import '../../math_lock/presentation/math_challenge_screen.dart';
+import '../../photo_check/application/photo_providers.dart';
 import '../../photo_check/application/photo_service.dart';
 import '../application/alarm_sound_player.dart';
 import '../application/notification_service.dart';
@@ -16,20 +18,20 @@ const int kMaxPhotoFailures = 5;
 
 /// Écran d'alarme plein écran : sonnerie bloquante, action unique vers la photo,
 /// puis calcul mental. Reproduit le flux du cahier des charges.
-class AlarmRingingScreen extends StatefulWidget {
+class AlarmRingingScreen extends ConsumerStatefulWidget {
   const AlarmRingingScreen({super.key, required this.reminder});
 
   final Reminder reminder;
 
   @override
-  State<AlarmRingingScreen> createState() => _AlarmRingingScreenState();
+  ConsumerState<AlarmRingingScreen> createState() => _AlarmRingingScreenState();
 }
 
 enum _Phase { ringing, validating, retry }
 
-class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
+class _AlarmRingingScreenState extends ConsumerState<AlarmRingingScreen> {
   final _player = AlarmSoundPlayer();
-  final _photoService = PhotoService();
+  late final PhotoService _photoService;
 
   int _photoFailures = 0;
   bool _backendError = false;
@@ -42,6 +44,7 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen> {
   @override
   void initState() {
     super.initState();
+    _photoService = ref.read(photoServiceProvider);
     _player.startRinging(widget.reminder.alarmSoundId);
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),

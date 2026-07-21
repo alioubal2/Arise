@@ -9,6 +9,7 @@ import '../../alarm/application/alarm_scheduler.dart';
 import '../../alarm/presentation/alarm_ringing_screen.dart';
 import '../../math_lock/presentation/math_challenge_screen.dart';
 import '../../photo_check/application/photo_service.dart';
+import '../../settings/presentation/settings_screen.dart';
 import '../application/reminder_providers.dart';
 import 'reminder_edit_screen.dart';
 
@@ -34,6 +35,13 @@ class HomeScreen extends ConsumerWidget {
             tooltip: 'Tester le calcul mental',
             icon: const Icon(Icons.calculate_outlined),
             onPressed: () => _openMathPreview(context),
+          ),
+          IconButton(
+            tooltip: 'Réglages',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
