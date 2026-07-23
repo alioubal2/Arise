@@ -151,6 +151,12 @@ class _PermissionsPageState extends State<_PermissionsPage> {
       permission: Permission.scheduleExactAlarm,
     ),
     _PermissionItem(
+      icon: Icons.battery_saver_outlined,
+      title: 'Fonctionnement en arrière-plan',
+      subtitle: 'Indispensable pour que les alarmes se déclenchent (batterie).',
+      permission: Permission.ignoreBatteryOptimizations,
+    ),
+    _PermissionItem(
       icon: Icons.photo_camera_outlined,
       title: 'Caméra',
       subtitle: 'Pour photographier l\'objet de validation.',

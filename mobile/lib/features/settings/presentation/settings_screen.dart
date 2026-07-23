@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/settings/app_settings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../photo_check/data/verification_api.dart';
+import 'alarm_reliability_screen.dart';
 
 /// Réglages de l'app : configuration du backend de vérification photo.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -114,6 +115,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 12),
           _statusBanner(),
+          const Divider(height: 40),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.alarm_on_outlined,
+                color: AppColors.primary),
+            title: const Text('Fiabilité des alarmes',
+                style: TextStyle(color: AppColors.onDark)),
+            subtitle: const Text(
+              'Vérifier les autorisations (batterie, alarmes exactes…)',
+              style: TextStyle(color: AppColors.onDarkMuted, fontSize: 12),
+            ),
+            trailing:
+                const Icon(Icons.chevron_right, color: AppColors.onDarkMuted),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const AlarmReliabilityScreen(),
+              ),
+            ),
+          ),
         ],
       ),
     );
